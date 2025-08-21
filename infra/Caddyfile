@@ -1,0 +1,22 @@
+﻿:80 {
+  encode gzip
+
+  @static path /assets/* /favicon.ico /manifest.webmanifest
+  handle @static {
+    reverse_proxy frontend:5173
+  }
+
+  handle /api/* {
+    reverse_proxy backend:8000
+  }
+
+  handle {
+    reverse_proxy frontend:5173
+  }
+
+  header {
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+}

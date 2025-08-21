@@ -1,0 +1,49 @@
+@"
+# --- General ---
+*.log
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Python / Django ---
+__pycache__/
+*.py[cod]
+*.pytest_cache/
+.venv/
+venv/
+.env
+.env.*        # local env files (use *.example for templates)
+media/
+staticfiles/
+
+# --- Node / React (Vite) ---
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.iml
+
+# --- Docker / Compose artifacts ---
+**/.dockerignore
+docker-data/
+*.pid
+
+# --- Supabase local (keep real creds out) ---
+supabase/.branches/
+supabase/.temp/
+supabase/.volumes/
+supabase/config.toml
+
+# --- Our infra envs: keep real envs out, commit only examples ---
+infra/env/*.env
+infra/env/*.secret
+!infra/env/*.example
+
+# --- Misc ---
+coverage/
+"@ | Out-File -Encoding UTF8 .gitignore

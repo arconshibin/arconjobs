@@ -8,6 +8,7 @@ export interface Client {
   type: "client";
   name: string;
   country_code?: string | null;
+  country_name?: string | null;
   address?: string | null;
   tax_id?: string | null;
   phone?: string | null;
@@ -45,6 +46,7 @@ export async function getClients(params?: {
 type CreateClientPayload = {
   name: string;
   country_code?: string;
+  country_name?: string;
   address?: string;
   tax_id?: string;
   phone?: string;

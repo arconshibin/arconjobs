@@ -8,7 +8,11 @@ class JobImageInline(admin.TabularInline):
 
 @admin.register(Job)
 class JobAdmin(admin.ModelAdmin):
-    list_display = ("title", "organization", "country", "status", "created_by", "updated_by", "created_at", "updated_at")
+    list_display = (
+        "title", "organization", "country", "status",
+        "vacancies_initial", "vacancies_limit", "vacancies_filled",  # ← added
+        "created_by", "updated_by", "created_at", "updated_at",
+    )
     list_filter = ("status", "organization", "country")
     search_fields = ("title", "organization__name", "created_by__email", "updated_by__email")
     inlines = [JobImageInline]

@@ -120,22 +120,28 @@ class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        refresh_str = request.COOKIES.get(REFRESH_COOKIE_NAME)
+        # Support both cookie-based refresh (legacy) and sending refresh in body.
+        refresh_str = request.data.get("refresh") or request.COOKIES.get(REFRESH_COOKIE_NAME)
+
         resp = Response(status=status.HTTP_204_NO_CONTENT)
-        clear_refresh_cookie(resp)
+        # If frontend isn't using cookies, there's no cookie to clear.
+        try:
+            clear_refresh_cookie(resp)
+        except Exception:
+            pass
 
         if not refresh_str:
             return resp  # nothing to blacklist
 
         try:
             refresh_obj = RefreshToken(refresh_str)
-            # If rotation enabled, current refresh might still be valid; blacklist it
+            # Blacklist by OutstandingToken jti if available
             if OutstandingToken and BlacklistedToken:
                 token = OutstandingToken.objects.filter(jti=refresh_obj.get("jti")).first()
                 if token and not BlacklistedToken.objects.filter(token=token).exists():
                     BlacklistedToken.objects.create(token=token, blacklisted_at=timezone.now())
         except TokenError:
-            # Token invalid/expired – cookie cleared anyway
+            # Token invalid/expired – ignore
             pass
 
         return resp

@@ -39,8 +39,8 @@ const Header: React.FC = () => {
   }
 
   return (
-    <header className="bg-content1 py-4 px-8 sticky top-0 z-10 shadow-sm">
-      <div className="flex justify-between items-center">
+    <header className="fixed inset-x-0 top-0 z-50 bg-content1 shadow-sm">
+  <div className="mx-auto flex items-center justify-between px-8 py-4">
         <Image src="/logo.png" width={180} alt="ArconJobs" />
 
         {/* Desktop menu */}

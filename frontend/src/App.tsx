@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Routes, Route } from "react-router-dom";
 import { initAccessFromRefresh } from "./lib/api";
 import { AuthProvider } from "./context/AuthContext";
+import { ToastProvider } from "@heroui/react";
 import ProtectedRoute, { RequireAuth, RedirectIfAuthed } from "./routes/guards";
 import DashboardLayout from "./layouts/DashboardLayout";
 import DashboardPage from "./pages/Dashboard";
@@ -13,7 +14,10 @@ import ClientsPage from "./pages/clients/ClientsPage";
 import NotFound from "./pages/NotFound";
 import LoadingAppSkeleton from "./components/LaodingAppSkeleton";
 import ClientDetailsPage from "./pages/clients/ClientDetailsPage";
-import JobsPage from "./pages/JobsPage";
+import JobsPage from "./pages/jobs/JobsPage";
+import JobsDetailsPage from "./pages/jobs/JobDetailsPage";
+import JobCreatePage from "./pages/jobs/JobCreatePage";
+import JobEditPage from "./pages/jobs/JobEditPage";
 function App() {
   const [ready, setReady] = useState(false);
 
@@ -25,6 +29,7 @@ if (!ready) return <LoadingAppSkeleton />;
 
   return (
     <AuthProvider>
+      <ToastProvider placement="top-right" />
       <Routes>
         {/* Public: redirect to / if already authed */}
         <Route
@@ -58,6 +63,10 @@ if (!ready) return <LoadingAppSkeleton />;
       }
     /> 
     <Route path="jobs" element={<JobsPage />} ></Route>
+    <Route path="jobs/:id" element={<JobsDetailsPage />} ></Route> 
+    <Route path="/jobs/new" element={<JobCreatePage />} />
+<Route path="/jobs/:id/edit" element={<JobEditPage />} />
+
             <Route path="candidates/register" element={<CandidateRegister />} />
             <Route path="candidates/:id" element={<CandidateProfile />} />
             <Route path="search" element={<SearchPage />} />

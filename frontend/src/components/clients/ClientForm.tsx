@@ -2,6 +2,8 @@
 "use client";
 
 import { Controller, useForm } from "react-hook-form";
+import { useEffect, useMemo, useState } from "react";
+import { Country, getCountries } from "../../services/directoryService";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -10,6 +12,8 @@ import {
   Select,
   SelectItem,
   Switch,
+  Autocomplete,
+  AutocompleteItem,
   Textarea,
   Divider,
 } from "@heroui/react";
@@ -19,7 +23,7 @@ import {
   createClient,
   updateClient,
 } from "../../services/clientService";
-import { useMemo } from "react";
+// no extra React hooks required
 /** ---------- Schemas ---------- */
 const orgSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -93,6 +97,8 @@ const statusOptions: { label: string; value: ClientStatus }[] = [
   { label: "Archived", value: "archived" },
 ];
 
+
+
 export default function ClientForm({
   initial,
   onSuccess,
@@ -108,37 +114,15 @@ export default function ClientForm({
 }) {
   const isCreate = !initial?.id;
   const hasEditableContact = !!(!isCreate && initial?.contact_user);
-  const computedDefaults = useMemo(() => ({
-    org: {
-      name: initial?.name ?? "",
-      country_code: initial?.country_code ?? "",
-      address: initial?.address ?? "",
-      tax_id: initial?.tax_id ?? "",
-      phone: initial?.phone ?? "",
-      status: (initial?.status as ClientStatus) ?? "active",
-    },
-    createContact: false,
-    contact: {
-      first_name: "",
-      last_name: "",
-      email: "",
-      username: "",
-      password: "",
-    },
-    contactEdit: hasEditableContact
-      ? {
-          first_name: initial?.contact_user?.first_name ?? "",
-          last_name: initial?.contact_user?.last_name ?? "",
-          email: initial?.contact_user?.email ?? "",
-          username: initial?.contact_user?.username ?? "",
-        }
-      : undefined,
-  }), [initial, hasEditableContact]);
+  // computedDefaults not required; keep logic inline in defaultValues
+
+
   const {
     register,
     handleSubmit,
     control,
     watch,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormInput, any, FormOutput>({
     resolver: zodResolver(formSchema),
@@ -161,14 +145,57 @@ export default function ClientForm({
       },
       contactEdit: hasEditableContact
         ? {
-            first_name: initial?.contact_user?.first_name ?? "",
-            last_name: initial?.contact_user?.last_name ?? "",
-            email: initial?.contact_user?.email ?? "",
-            username: initial?.contact_user?.username ?? "",
-          }
+          first_name: initial?.contact_user?.first_name ?? "",
+          last_name: initial?.contact_user?.last_name ?? "",
+          email: initial?.contact_user?.email ?? "",
+          username: initial?.contact_user?.username ?? "",
+        }
         : undefined,
     },
   });
+  const [countries, setCountries] = useState<Country[]>([]);
+  const [countryQuery, setCountryQuery] = useState("");
+  const [isCountryOpen, setIsCountryOpen] = useState(false);
+  useEffect(() => {
+    let ignore = false;
+    (async () => {
+      const res = await getCountries(); // fetch ALL once
+      if (!ignore && res.success) setCountries(res.returnedData);
+    })();
+    return () => { ignore = true; };
+  }, []); // ⬅️ only once
+
+  const filtered = useMemo(() => {
+    const q = countryQuery.trim().toLowerCase();
+    if (!q) return countries;
+    return countries.filter((c) => {
+      const name = c.name.toLowerCase();
+      const code = c.code.toLowerCase();
+      const dial = (c.dial_code || "").toLowerCase().replace(/^\+/, "");
+      const qn = q.replace(/^\+/, "");
+      return (
+        name.includes(q) ||
+        code.includes(q) ||
+        (c.dial_code || "").toLowerCase().includes(q) ||
+        dial.includes(qn)
+      );
+    });
+  }, [countries, countryQuery]);
+
+  const selectedCode = (watch("org.country_code") || "").toUpperCase();
+  const selectedCountry = useMemo(
+    () => countries.find((c) => c.code.toUpperCase() === selectedCode),
+    [countries, selectedCode]
+  );
+useEffect(() => {
+  if (!selectedCode || !countries.length) return;
+  const item = countries.find(c => c.code.toUpperCase() === selectedCode);
+  if (item) {
+    setCountryQuery(
+      `${item.name} (${selectedCode})${item.dial_code ? ` — ${item.dial_code}` : ""}`
+    );
+  }
+}, [countries, selectedCode]);
 
   const createContact = watch("createContact");
 
@@ -189,14 +216,14 @@ export default function ClientForm({
         ...payloadOrg,
         ...(values.createContact
           ? {
-              contact_person: {
-                first_name: values.contact.first_name.trim(),
-                last_name: values.contact.last_name.trim(),
-                email: values.contact.email.trim(),
-                username: values.contact.username.trim() || undefined,
-                password: values.contact.password.trim() || undefined,
-              },
-            }
+            contact_person: {
+              first_name: values.contact.first_name.trim(),
+              last_name: values.contact.last_name.trim(),
+              email: values.contact.email.trim(),
+              username: values.contact.username.trim() || undefined,
+              password: values.contact.password.trim() || undefined,
+            },
+          }
           : {}),
       };
 
@@ -219,11 +246,11 @@ export default function ClientForm({
     // EDIT
     const contactPatch = hasEditableContact && values.contactEdit
       ? {
-          first_name: values.contactEdit.first_name.trim(),
-          last_name: values.contactEdit.last_name.trim(),
-          email: values.contactEdit.email.trim(),
-          username: values.contactEdit.username.trim() || undefined,
-        }
+        first_name: values.contactEdit.first_name.trim(),
+        last_name: values.contactEdit.last_name.trim(),
+        email: values.contactEdit.email.trim(),
+        username: values.contactEdit.username.trim() || undefined,
+      }
       : undefined;
 
     const updatePayload = {
@@ -251,14 +278,64 @@ export default function ClientForm({
           isInvalid={!!errors.org?.name}
           errorMessage={errors.org?.name?.message}
         />
-        <Input
-          label="Country (ISO 2)"
-          {...register("org.country_code")}
-          isInvalid={!!errors.org?.country_code}
-          errorMessage={errors.org?.country_code?.message}
-        />
+        {/* Country select (ISO-2) */}
+        <div className="space-y-2">
+          <Autocomplete
+  label="Country"
+  items={filtered}                     // your filtered memo (by name/code/dial)
+  selectedKey={selectedCode || null}
+  inputValue={countryQuery}
+  onInputChange={setCountryQuery}
+  menuTrigger="input"
+  allowsCustomValue={false}
+
+  // tame Chrome’s saved suggestions
+  autoComplete="off"
+  name="country_autocomplete"
+  autoCorrect="off"
+  autoCapitalize="off"
+  spellCheck="false"
+
+  listboxProps={{ emptyContent: "No matching countries" }}
+  popoverProps={{ placement: "bottom", offset: 8 }}
+  onSelectionChange={(key) => {
+    const code = (key ?? "").toString().toUpperCase();
+    const item = countries.find(c => c.code.toUpperCase() === code);
+
+    // update form value
+    setValue("org.country_code", code, { shouldValidate: true });
+
+    // update visible text to the chosen label
+    setCountryQuery(
+      item
+        ? `${item.name} (${code})${item.dial_code ? ` — ${item.dial_code}` : ""}`
+        : ""
+    );
+  }}
+>
+  {(item) => (
+    <AutocompleteItem
+      key={item.code.toUpperCase()}
+      textValue={`${item.name} ${item.code} ${item.dial_code ?? ""}`}
+    >
+      {item.name} ({item.code.toUpperCase()})
+      {item.dial_code ? ` — ${item.dial_code}` : ""}
+    </AutocompleteItem>
+  )}
+</Autocomplete>
+
+
+          {errors.org?.country_code && (
+            <p className="text-danger text-sm">{String(errors.org.country_code.message)}</p>
+          )}
+        </div>
+
         <Input label="Tax ID" {...register("org.tax_id")} />
-        <Input label="Phone" {...register("org.phone")} />
+        {/* Phone with optional dial prefix preview */}
+        <Input
+          label={selectedCountry?.dial_code ? `Phone (prefix ${selectedCountry.dial_code})` : "Phone"}
+          {...register("org.phone")}
+        />
       </div>
 
       <Textarea label="Address" {...register("org.address")} />

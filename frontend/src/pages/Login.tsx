@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useNavigate, useLocation } from "react-router-dom";
-import { setAccessToken } from "../lib/api"; 
-const API_BASE = (import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api").replace(/\/$/, "");
+import { login } from "../lib/auth";
 
 
 const Login: React.FC = () => {
@@ -20,31 +19,15 @@ const handleSubmit = async (e: React.FormEvent) => {
   setLoading(true);
   setErr(null);
   try {
-    // POST /api/auth/token/ with credentials: 'include' so backend sets the httpOnly refresh cookie
-    const res = await fetch(`${API_BASE}/auth/token/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ username: email, password }), // backend expects 'username'
-    });
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErr(data.detail || "Invalid credentials");
-      setLoading(false);
-      return;
-    }
-
-    const data = await res.json(); // { access: "..." }
-    setAccessToken(data.access ?? null);           // <-- IMPORTANT
-
-    // if your AuthContext.refresh() loads /api/me into context, keep it:
+    // Use the shared stateless login helper which persists refresh in localStorage
+    await login(email, password);
+    // Refresh AuthContext (loads /api/me/)
     await refresh?.();
 
     const redirectTo = (location as any).state?.from?.pathname || "/";
     navigate(redirectTo, { replace: true });
-  } catch {
-    setErr("Network error");
+  } catch (err: any) {
+    setErr(err?.message || "Invalid credentials");
   } finally {
     setLoading(false);
   }

@@ -2,18 +2,20 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import Organization, Profile
+from directory.utils import country_name_for
 class OrganizationSerializer(serializers.ModelSerializer):
+    country_name = serializers.SerializerMethodField(read_only=True)
     contact_user = serializers.SerializerMethodField()
 
     class Meta:
         model = Organization
         fields = [
-            "id", "type", "name", "country_code",
+            "id", "type", "name", "country_code","country_name",
             "address", "tax_id", "phone", "status",
             "added_by", "created_at", "updated_at",
             "contact_user",
         ]
-        read_only_fields = ["id", "type", "added_by", "created_at", "updated_at", "contact_user"]
+        read_only_fields = ["id", "type", "added_by", "created_at", "updated_at", "contact_user","country_code","country_name"]
 
     def get_contact_user(self, obj):
         # pick the first org admin as the primary contact
@@ -28,6 +30,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
             "first_name": u.first_name,
             "last_name": u.last_name,
         }
+    def get_country_name(self, obj):
+        return country_name_for(getattr(obj, "country_code", None))
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:

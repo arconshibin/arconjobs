@@ -18,7 +18,7 @@ from django.contrib.auth.decorators import login_required
 
 # --- Organizations (all types) ---
 class OrganizationViewSet(viewsets.ModelViewSet):
-    queryset = Organization.objects.all().order_by("name")
+    queryset = Organization.objects.all().order_by("created_at")
     serializer_class = OrganizationSerializer
     permission_classes = [IsSuperuserOrStaff]
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
@@ -57,13 +57,14 @@ class ClientViewSet(viewsets.ModelViewSet):
         "profiles__user__first_name", "profiles__user__last_name",
     ]
     ordering_fields = ["name", "created_at"]
+    ordering = ["-created_at"]
 
     def get_queryset(self):
         return (
             Organization.objects
             .filter(type=Organization.CLIENT)
             .prefetch_related("profiles__user")
-            .order_by("name")
+            .order_by("-created_at")
         )
 
     @transaction.atomic

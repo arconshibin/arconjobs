@@ -1,128 +1,140 @@
 // src/lib/api.ts
+// Single source of truth for API calls + tokens
 
-// ---- Base + paths (unchanged shape; tweak defaults for JWT) ----
-const RAW_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost:8000/api";
-const API_BASE = RAW_BASE.replace(/\/$/, ""); // strip trailing slash
-
-// Allow overriding these if your backend paths differ:
-const CSRF_PATH    = import.meta.env.VITE_API_CSRF_PATH    ?? "/csrf/";
-const REFRESH_PATH = import.meta.env.VITE_API_REFRESH_PATH ?? "/auth/refresh/"; // <-- JWT refresh
-
+const API_BASE = (import.meta as any)?.env?.VITE_API_BASE || "http://localhost:8000/api";
+const REFRESH_PATH = import.meta.env.VITE_API_REFRESH_PATH ?? "/auth/refresh/";
 function url(path: string) {
-  return `${API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
+  return path.startsWith("http") ? path : `${API_BASE.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
-// ---- CSRF cookie helper (harmless if unused with JWT) ----
-function getCookie(name: string) {
-  if (typeof document === "undefined") return null;
-  const m = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
-  return m ? decodeURIComponent(m[1]) : null;
-}
+// ---- access token management (single source of truth) ----
+let accessToken: string | null =
+  (typeof localStorage !== "undefined" && (localStorage.getItem("access_token") || null)) ||
+  (typeof sessionStorage !== "undefined" && (sessionStorage.getItem("access_token") || null)) ||
+  null;
 
-export async function ensureCsrf() {
-  // hit /csrf/ once to set csrftoken cookie (optional for JWT)
-  await fetch(url(CSRF_PATH), { credentials: "include" });
-}
-
-// ---- NEW: minimal JWT token handling in-memory ----
-let accessToken: string | null = null;
-
-export function setAccessToken(token: string | null) {
+export function setAccessToken(token: string | null, persist: "local" | "session" | "none" = "local") {
   accessToken = token;
-}
-export function getAccessToken() {
-  return accessToken;
+  try {
+    if (typeof localStorage !== "undefined") localStorage.removeItem("access_token");
+    if (typeof sessionStorage !== "undefined") sessionStorage.removeItem("access_token");
+    if (token) {
+      if (persist === "local" && typeof localStorage !== "undefined") localStorage.setItem("access_token", token);
+      if (persist === "session" && typeof sessionStorage !== "undefined") sessionStorage.setItem("access_token", token);
+    }
+  } catch {}
 }
 
-/** Try to mint a fresh access token using the httpOnly refresh cookie. */
+export function clearAccessToken() {
+  setAccessToken(null, "none");
+}
+
+// ---- refresh using the server-set refresh cookie ----
+async function refreshAccess(): Promise<boolean> {
+    const refresh = localStorage.getItem("refresh_token");
+    if (!refresh) {
+      setAccessToken(null);
+      return false;
+    }
+    const res = await fetch(`${API_BASE}${REFRESH_PATH}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh }),
+    });
+    if (!res.ok) {
+      setAccessToken(null);
+      return false;
+    }
+    const data = await res.json(); // { access: "..." }
+    setAccessToken(data.access ?? null);
+    // If server rotated refresh, persist the new refresh as well
+    if (data.refresh) {
+      try { localStorage.setItem("refresh_token", data.refresh); } catch(_) {}
+    }
+    return data;
+}
+
+// 🔧 Back-compat export expected by AuthContext (returns boolean)
 export async function initAccessFromRefresh(): Promise<boolean> {
-  const r = await fetch(url(REFRESH_PATH), {
-    method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({}), // server reads refresh from cookie
-  });
-  if (!r.ok) return false;
-  const data = await r.clone().json().catch(() => null);
-  const token = data?.access ?? null;
-  accessToken = token;
-  return !!token;
+  return refreshAccess();
 }
 
-// ---- Core fetch with Bearer + one refresh retry on 401 ----
+
+
+
+// ---- core fetch with 401->refresh->replay ----
 export async function apiFetch(path: string, init: RequestInit = {}) {
+  const isForm = typeof FormData !== "undefined" && init.body instanceof FormData;
+  const method = (init.method || "GET").toUpperCase();
+
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isForm ? {} : { "Content-Type": "application/json" }),
     ...(init.headers as Record<string, string> | undefined),
   };
-
-  // Attach Bearer if we have it
   if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
 
+  // CSRF only for JSON non-GET if you need it; skip for FormData to avoid boundary issues
   const opts: RequestInit = {
-    credentials: "include", // keep cookies for refresh route
-    headers,
+    credentials: "include",
     ...init,
+    method,
+    headers,
   };
 
-  // Optional CSRF for unsafe methods (harmless with JWT)
-  const method = (opts.method || "GET").toUpperCase();
-  if (method !== "GET" && method !== "HEAD") {
-    const token = getCookie("csrftoken");
-    if (token) headers["X-CSRFToken"] = token;
-  }
-
-  // First attempt
   let res = await fetch(url(path), opts);
   if (res.status !== 401) return res;
 
-  // One retry: try to refresh access via cookie
-  const refreshed = await initAccessFromRefresh();
-  if (!refreshed) return res;
+  // attempt exactly one refresh + replay
+  const ok = await refreshAccess();
+  if (!ok) return res;
 
-  // Update header and retry once
-  if (accessToken) headers["Authorization"] = `Bearer ${accessToken}`;
-  res = await fetch(url(path), { ...opts, headers });
+  const replayHeaders: Record<string, string> = {
+    ...(isForm ? {} : { "Content-Type": "application/json" }),
+    ...(init.headers as Record<string, string> | undefined),
+  };
+  if (accessToken) replayHeaders["Authorization"] = `Bearer ${accessToken}`;
+
+  res = await fetch(url(path), { ...opts, headers: replayHeaders });
   return res;
 }
 
-// ----- JSON helper + tiny API wrapper (unchanged external shape) -----
-
-async function json<T>(res: Response): Promise<T> {
-  const data = await res
-    .clone()
-    .json()
-    .catch(() => ({} as any));
+// ---- tiny JSON helper ----
+async function parseJson<T>(res: Response): Promise<T> {
+  const data = await res.clone().json().catch(() => ({} as any));
   if (!res.ok) {
-    const err = (data && (data.error ?? data.detail)) || res.statusText;
+    // surface server error message if available
+    const err = (data?.error ?? data?.detail ?? res.statusText) as any;
     throw new Error(typeof err === "string" ? err : JSON.stringify(err));
   }
-  // Supports both raw { ... } and wrapped { returnedData: ... }
   return (data?.returnedData ?? data) as T;
 }
 
+// ---- public API helpers ----
 export const api = {
   async get<T>(path: string) {
     const res = await apiFetch(path, { method: "GET" });
-    return json<T>(res);
+    return parseJson<T>(res);
   },
   async post<T>(path: string, body?: any) {
-    const res = await apiFetch(path, {
-      method: "POST",
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    return json<T>(res);
+    const res = await apiFetch(path, { method: "POST", body: body ? JSON.stringify(body) : undefined });
+    return parseJson<T>(res);
   },
   async patch<T>(path: string, body?: any) {
-    const res = await apiFetch(path, {
-      method: "PATCH",
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    return json<T>(res);
+    const res = await apiFetch(path, { method: "PATCH", body: body ? JSON.stringify(body) : undefined });
+    return parseJson<T>(res);
   },
   async delete<T>(path: string) {
     const res = await apiFetch(path, { method: "DELETE" });
-    return json<T>(res);
+    return parseJson<T>(res);
+  },
+  // multipart helpers (for jobs with image_files)
+  async postForm<T>(path: string, form: FormData) {
+    const res = await apiFetch(path, { method: "POST", body: form });
+    return parseJson<T>(res);
+  },
+  async patchForm<T>(path: string, form: FormData) {
+    const res = await apiFetch(path, { method: "PATCH", body: form });
+    return parseJson<T>(res);
   },
 };
 

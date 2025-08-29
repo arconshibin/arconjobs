@@ -20,13 +20,11 @@ export default function ClientTable({
   clients,
   loading,
   onSearch,
-  onCreateRequested,
   onEdit,
 }: {
   clients: Client[];
   loading: boolean;
   onSearch: (filters: { q: string; status: ClientStatus | "" }) => void;
-  onCreateRequested: () => void;
   onEdit: (client: Client) => void;
 }) {
   const navigate = useNavigate();

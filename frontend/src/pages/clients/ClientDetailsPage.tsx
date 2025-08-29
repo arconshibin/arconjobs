@@ -21,13 +21,13 @@ import ClientForm from "../../components/clients/ClientForm";
 import {
   Client,
   getClient,
-  updateClient, // (still used by ClientForm)
+  // updateClient is not used directly here
   deleteClient,
   resetContactPassword,
 } from "../../services/clientService";
 import { useAuth } from "../../context/AuthContext";
 export default function ClientDetailsPage() {
-  const { user } = useAuth();  
+  const { user } = useAuth();
   console.log(user)           // 👈 current logged-in user
   const canDelete = !!user?.is_superuser;
   const { id } = useParams();
@@ -95,7 +95,7 @@ export default function ClientDetailsPage() {
             </div>
           </div>
         </PageCard>
-      </div>
+      </div >
     );
   }
 
@@ -129,29 +129,29 @@ export default function ClientDetailsPage() {
     }
   }
 
-async function handleGenerateTemp() {
-  if (!client) return;
-  setPwdBusy(true);
-  try {
-    const res = await resetContactPassword(
-      client.id,
-      customPwd ? { password: customPwd } : undefined
-    );
-    if (res.success) {
-      setTempPwd(res.returnedData.temp_password);
-    } else {
-      // optional: surface the error somehow
-      console.error(res.error || "Failed to reset password");
+  async function handleGenerateTemp() {
+    if (!client) return;
+    setPwdBusy(true);
+    try {
+      const res = await resetContactPassword(
+        client.id,
+        customPwd ? { password: customPwd } : undefined
+      );
+      if (res.success) {
+        setTempPwd(res.returnedData.temp_password);
+      } else {
+        // optional: surface the error somehow
+        console.error(res.error || "Failed to reset password");
+      }
+    } finally {
+      setPwdBusy(false);
     }
-  } finally {
-    setPwdBusy(false);
   }
-}
 
 
   function copy(str?: string | null) {
     if (!str) return;
-    navigator.clipboard?.writeText(str).catch(() => {});
+    navigator.clipboard?.writeText(str).catch(() => { });
   }
 
   return (
@@ -192,25 +192,25 @@ async function handleGenerateTemp() {
                 onPress={() => {
                   setTempPwd(null);
                   setResetOpen(true);
-                  setCustomPwd(""); 
+                  setCustomPwd("");
                 }}
               >
                 Reset password
               </Button>
             </Tooltip>
-            
+
             {canDelete && (
-            <Tooltip color="danger" content="Delete client permanently">
-              <Button
-                color="danger"
-                variant="flat"
-                startContent={<Icon icon="lucide:trash-2" />}
-                onPress={() => setDeleteOpen(true)}
-              >
-                Delete
-              </Button>
-            </Tooltip>
-          )}
+              <Tooltip color="danger" content="Delete client permanently">
+                <Button
+                  color="danger"
+                  variant="flat"
+                  startContent={<Icon icon="lucide:trash-2" />}
+                  onPress={() => setDeleteOpen(true)}
+                >
+                  Delete
+                </Button>
+              </Tooltip>
+            )}
           </div>
         }
       >
@@ -220,15 +220,25 @@ async function handleGenerateTemp() {
           <section className="rounded-2xl border border-divider p-5 bg-content1">
             <div className="text-md font-semibold uppercase tracking-wide text-foreground-500 mb-3">Details</div>
             <div className="space-y-2">
-              <Row label="Country">{client.country_code || "—"}</Row>
-              <Row label="Address">{client.address || "—"}</Row>
+              
+              <Row label="Address">{client.address || "—"}
+                
+                {client.address && (
+                  <IconButton onClick={() => copy(client.address)} icon="lucide:copy" tooltip="Copy address" />
+                )}
+                </Row>
+                <Row label="Country">{client.country_name || "—"}</Row>
               <Row label="Phone">
                 {client.phone || "—"}
                 {client.phone && (
                   <IconButton onClick={() => copy(client.phone)} icon="lucide:copy" tooltip="Copy phone" />
                 )}
               </Row>
-              <Row label="Tax ID">{client.tax_id || "—"}</Row>
+              <Row label="Tax ID">{client.tax_id || "—"}
+                {client.tax_id && (
+                  <IconButton onClick={() => copy(client.tax_id)} icon="lucide:copy" tooltip="Copy Tax Id" />
+                )}
+              </Row>
             </div>
             <Divider className="my-4" />
             <div className="text-xs text-foreground-500">
@@ -281,7 +291,7 @@ async function handleGenerateTemp() {
                     onClose();
                   }}
                   onClose={onClose}
-                  toast={() => {}}
+                  toast={() => { }}
                 />
               </ModalBody>
             </>
@@ -290,7 +300,7 @@ async function handleGenerateTemp() {
       </Modal>
 
       {/* RESET PASSWORD */}
-      <Modal isOpen={resetOpen} isDismissable={false} isKeyboardDismissDisabled={false} onOpenChange={(open) => { if (!open) {setTempPwd(null);setCustomPwd("");} setResetOpen(open); }}>
+      <Modal isOpen={resetOpen} isDismissable={false} isKeyboardDismissDisabled={false} onOpenChange={(open) => { if (!open) { setTempPwd(null); setCustomPwd(""); } setResetOpen(open); }}>
         <ModalContent>
           {(onClose) => (
             <>
@@ -300,44 +310,44 @@ async function handleGenerateTemp() {
               </ModalHeader>
               <ModalBody>
                 {tempPwd ? (
-  <p className="text-sm text-foreground-600">
-    New password for <b>{client.name}</b>.
-  </p>
-                ):
-                ( <p className="text-sm text-foreground-600">
-    This generates a new password for <b>{client.name}</b>.
-  </p>)}
-                
+                  <p className="text-sm text-foreground-600">
+                    New password for <b>{client.name}</b>.
+                  </p>
+                ) :
+                  (<p className="text-sm text-foreground-600">
+                    This generates a new password for <b>{client.name}</b>.
+                  </p>)}
 
-  {tempPwd ? (
-    <div className="space-y-2">
-      <div className="flex gap-2">
-        <Input readOnly value={tempPwd} className="flex-1" />
-        <Button variant="flat" onPress={() => copy(tempPwd)} startContent={<Icon icon="lucide:copy" />}>
-          Copy
-        </Button>
-      </div>
-      <div className="text-xs text-foreground-500">
-        Share it securely; they should change it after login.
-      </div>
-    </div>
-  ) : (
-    <>
-      <div className="space-y-1">
-        <div className="text-sm text-foreground-500">Custom password (optional)</div>
-        <Input
-          type="password"
-          placeholder="Leave empty to auto-generate"
-          value={customPwd}
-          onValueChange={setCustomPwd}
-        />
-      </div>
-      <div className="text-xs text-foreground-500">
-        If left blank, a strong temporary password will be generated.
-      </div>
-    </>
-  )}
-</ModalBody>
+
+                {tempPwd ? (
+                  <div className="space-y-2">
+                    <div className="flex gap-2">
+                      <Input readOnly value={tempPwd} className="flex-1" />
+                      <Button variant="flat" onPress={() => copy(tempPwd)} startContent={<Icon icon="lucide:copy" />}>
+                        Copy
+                      </Button>
+                    </div>
+                    <div className="text-xs text-foreground-500">
+                      Share it securely; they should change it after login.
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="space-y-1">
+                      <div className="text-sm text-foreground-500">Custom password (optional)</div>
+                      <Input
+                        type="password"
+                        placeholder="Leave empty to auto-generate"
+                        value={customPwd}
+                        onValueChange={setCustomPwd}
+                      />
+                    </div>
+                    <div className="text-xs text-foreground-500">
+                      If left blank, a strong temporary password will be generated.
+                    </div>
+                  </>
+                )}
+              </ModalBody>
 
               <ModalFooter>
                 {!tempPwd ? (
@@ -346,13 +356,13 @@ async function handleGenerateTemp() {
                       Close
                     </Button>
                     <Button
-  color="primary"
-  className="text-white"
-  isLoading={pwdBusy}
-  onPress={handleGenerateTemp}
->
-  {customPwd ? "Set password" : "Generate"}   {/* <-- nicer label */}
-</Button>
+                      color="primary"
+                      className="text-white"
+                      isLoading={pwdBusy}
+                      onPress={handleGenerateTemp}
+                    >
+                      {customPwd ? "Set password" : "Generate"}   {/* <-- nicer label */}
+                    </Button>
                   </>
                 ) : (
                   <Button color="primary" className="text-white" onPress={() => { setTempPwd(null); onClose(); }}>

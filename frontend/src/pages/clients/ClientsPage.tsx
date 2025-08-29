@@ -29,7 +29,7 @@ export default function ClientsPage() {
     const res = await getClients({
       q: params?.q?.trim(),
       status: (params?.status || undefined) as ClientStatus | undefined,
-      ordering: "name",
+      ordering: "-created_at",
     });
     if (res.success) {
       const raw: any = res.returnedData;
@@ -69,7 +69,6 @@ export default function ClientsPage() {
           clients={clients}
           loading={loading}
           onSearch={(filters) => load(filters)}
-          onCreateRequested={() => create.onOpen()}
           onEdit={(client) => {
             setEditing(client);
             edit.onOpen();

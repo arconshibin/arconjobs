@@ -1,5 +1,7 @@
 from django.urls import path, include
-from accounts.auth_views import CookieTokenObtainPairView, CookieTokenRefreshView, LogoutView, MeView
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from django.views.decorators.csrf import csrf_exempt
+from accounts.auth_views import LogoutView, MeView
 
 from django.conf import settings
 
@@ -21,8 +23,9 @@ urlpatterns = [
     path("api/finance/",      include("finance.urls")),
 
     # Additional routes
-   path("api/auth/token/",   CookieTokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("api/auth/refresh/", CookieTokenRefreshView.as_view(),    name="token_refresh"),
+        # Stateless JWT endpoints (no refresh cookie) — frontend should persist refresh locally
+        path("api/auth/token/",   csrf_exempt(TokenObtainPairView.as_view()), name="token_obtain_pair"),
+         path("api/auth/refresh/", csrf_exempt(TokenRefreshView.as_view()),    name="token_refresh"),
     path("api/auth/logout/",  LogoutView.as_view(),                name="logout"),
     path("api/me/",           MeView.as_view(),                    name="me"),
 ]

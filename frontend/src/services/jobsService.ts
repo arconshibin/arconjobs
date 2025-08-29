@@ -19,6 +19,11 @@ export interface Job {
   salary_max?: number | null;
   currency?: string | null;
   country?: string | null;
+  country_name?: string | null;
+  vacancies_initial?: number | null;   // original announced openings
+  vacancies_limit?: number | null;     // current cap
+  vacancies_filled: number;            // system counter
+  vacancies_remaining?: number | null; // computed by backend (read-only)
   status: JobStatus;
   created_at: string;
   updated_at: string;
@@ -31,51 +36,11 @@ type Success<T> = { success: true; returnedData: T; status?: number };
 type Failure = { success: false; error: any; status?: number };
 export type ServiceResult<T> = Success<T> | Failure;
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://localhost/api";
-
-function getAccessToken(): string | null {
-  return typeof window !== "undefined" ? localStorage.getItem("access") : null;
-}
-function setAccessToken(token: string) {
-  if (typeof window !== "undefined") localStorage.setItem("access", token);
-}
-
-async function refreshAccessToken(): Promise<boolean> {
-  // Cookie-based refresh: must send credentials so httpOnly refresh cookie is sent
-  const r = await fetch(`${API_BASE}/auth/refresh/`, {
-    method: "POST",
-    credentials: "include",
-  });
-  if (!r.ok) return false;
-  const data = await r.json().catch(() => ({}));
-  const newAccess = data?.access;
-  if (newAccess) {
-    setAccessToken(newAccess);
-    return true;
-  }
-  return false;
-}
-
-async function authFetch(input: string, init: RequestInit = {}, retry = true): Promise<Response> {
-  const headers = new Headers(init.headers || {});
-  const token = getAccessToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-
-  // Don’t set Content-Type for FormData; fetch will do it
-  const resp = await fetch(input, { ...init, headers });
-
-  if (resp.status !== 401 || !retry) return resp;
-
-  // Try to refresh and retry once
-  const ok = await refreshAccessToken();
-  if (!ok) return resp;
-
-  const headers2 = new Headers(init.headers || {});
-  const token2 = getAccessToken();
-  if (token2) headers2.set("Authorization", `Bearer ${token2}`);
-
-  return fetch(input, { ...init, headers: headers2 });
-}
+import { api, apiFetch } from "../lib/api";
+// Note: `api` and `apiFetch` handle attaching the Bearer header and will
+// attempt a single refresh using the centralized `tryRefresh()` helper.
+// This file uses those helpers rather than maintaining its own cookie-based
+// refresh logic to avoid mismatched refresh strategies.
 
 function toFormData(payload: Record<string, any>): FormData {
   const fd = new FormData();
@@ -92,13 +57,27 @@ function toFormData(payload: Record<string, any>): FormData {
 
 // ------- Public API -------
 
-export async function listJobs(): Promise<ServiceResult<Job[]>> {
-  const r = await authFetch(`${API_BASE}/jobs/`, { method: "GET" });
-  if (!r.ok) return { success: false, error: await r.json().catch(() => r.statusText), status: r.status };
-  const data = await r.json();
-  const results: Job[] = Array.isArray(data) ? data : data.results ?? [];
-  return { success: true, returnedData: results, status: r.status };
+export async function listJobs(
+  params?: Record<string, string | number | boolean | undefined | null>
+): Promise<ServiceResult<Job[]>> {
+  try {
+    const usp = new URLSearchParams();
+    if (params) {
+      for (const [k, v] of Object.entries(params)) {
+        if (v === undefined || v === null || v === "") continue;
+        usp.append(k, String(v));
+      }
+    }
+
+    const path = `/jobs/${usp.toString() ? `?${usp.toString()}` : ""}`;
+    const data = await api.get<Job[] | { results: Job[] }>(path);
+    const rows = Array.isArray(data) ? data : (data as any).results ?? [];
+    return { success: true, returnedData: rows };
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? "Request failed" };
+  }
 }
+
 
 export interface UpsertJobPayload {
   organization?: string;             // staff/admin: must provide; client users: backend forces their org
@@ -110,29 +89,38 @@ export interface UpsertJobPayload {
   country?: string | null;
   status?: "active" | "inactive";    // "deleted" not allowed here; only superadmin via DELETE
   image_files?: File[];
+  vacancies_initial?: number; // set on create; locked after
+  vacancies_limit?: number;   // editable later
 }
 
 export async function createJob(payload: UpsertJobPayload): Promise<ServiceResult<Job>> {
-  const r = await authFetch(`${API_BASE}/jobs/`, {
-    method: "POST",
-    body: toFormData(payload),
-    // NOTE: do not set Content-Type for FormData
-  });
-  if (!r.ok) return { success: false, error: await r.json().catch(() => r.statusText), status: r.status };
-  return { success: true, returnedData: await r.json(), status: r.status };
+  try {
+    const form = toFormData(payload);
+    const data = await api.postForm<Job>("/jobs/", form);  // << multipart via wrapper
+    return { success: true, returnedData: data };
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? "Request failed" };
+  }
 }
 
 export async function updateJob(id: string, payload: UpsertJobPayload): Promise<ServiceResult<Job>> {
-  const r = await authFetch(`${API_BASE}/jobs/${id}/`, {
-    method: "PATCH",
-    body: toFormData(payload),
-  });
-  if (!r.ok) return { success: false, error: await r.json().catch(() => r.statusText), status: r.status };
-  return { success: true, returnedData: await r.json(), status: r.status };
+  try {
+    const form = toFormData(payload);
+    const data = await api.patchForm<Job>(`/jobs/${id}/`, form); // << multipart via wrapper
+    return { success: true, returnedData: data };
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? "Request failed" };
+  }
 }
 
 export async function deleteJob(id: string): Promise<ServiceResult<{}>> {
-  const r = await authFetch(`${API_BASE}/jobs/${id}/`, { method: "DELETE" });
-  if (!r.ok) return { success: false, error: await r.json().catch(() => r.statusText), status: r.status };
-  return { success: true, returnedData: {}, status: r.status };
+  try {
+    const res = await apiFetch(`/jobs/${id}/`, { method: "DELETE" });
+    if (!res.ok) return { success: false, error: await res.json().catch(() => res.statusText), status: res.status };
+    return { success: true, returnedData: {}, status: res.status };
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? "Request failed" };
+  }
 }
+
+

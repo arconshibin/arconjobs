@@ -74,12 +74,10 @@ SIMPLE_JWT = {
 
 # --- DB (Docker backend -> host Supabase Postgres) ---
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "HOST": "host.docker.internal",
-        "PORT": "54322",
-        "NAME": "postgres",
-        "USER": "postgres",
-        "PASSWORD": "postgres",
-    }
+    "default": dj_database_url.parse(
+        os.environ.get("DATABASE_URL"),
+        conn_max_age=0,   # <-- important for PgBouncer "transaction" pooling
+    )
 }
+
+CONN_MAX_AGE = 0 

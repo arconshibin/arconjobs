@@ -59,9 +59,8 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database via env (Supabase Local)
 DATABASES = {
     "default": dj_database_url.parse(
-        os.environ.get("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/postgres"),
-        conn_max_age=600,
-        ssl_require=False,
+        os.environ.get("DATABASE_URL"),
+        conn_max_age=0,   # <-- important for PgBouncer "transaction" pooling
     )
 }
 
@@ -78,3 +77,4 @@ USE_I18N = True
 USE_TZ = True
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+CONN_MAX_AGE = 0 

@@ -54,6 +54,13 @@ export default function JobsGrid({ loading, jobs, onEdit, onDelete }: Props) {
         const statusColor: "success" | "default" = job.status === "active" ? "success" : "default";
         const imgs = (job as any)?.images ?? [];
         const firstImage = imgs.length ? imgs[0].image : null;
+
+const formattedImage = firstImage
+  ? firstImage.replace("http://localhost/", "http://localhost:8000/")
+  : null;
+
+console.log("Formatted jobs API Image:", formattedImage);
+
         const remaining =
   job.vacancies_remaining ?? (
     job.vacancies_limit != null && job.vacancies_filled != null
@@ -72,9 +79,9 @@ const openingsText =
             onPress={() => navigate(`/jobs/${job.id}`)}
             className="overflow-hidden hover:shadow-md transition"
           >
-            {firstImage ? (
+            {formattedImage ? (
               <div className="h-28 w-full overflow-hidden bg-content2">
-                <img src={firstImage} alt={job.title} className="w-full h-full object-cover" />
+                <img src={formattedImage} alt={job.title} className="w-full h-full object-cover" />
               </div>
             ) : (
               <div className="h-28 w-full flex items-center justify-center bg-content2 text-foreground-400">

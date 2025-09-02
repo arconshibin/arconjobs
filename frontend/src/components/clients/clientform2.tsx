@@ -163,7 +163,7 @@ export default function ClientForm({
       if (!ignore && res.success) setCountries(res.returnedData);
     })();
     return () => { ignore = true; };
-  }, []); // ⬅️ only once
+  }, []); // ⬅ only once
 
   const filtered = useMemo(() => {
     const q = countryQuery.trim().toLowerCase();
@@ -196,18 +196,6 @@ useEffect(() => {
     );
   }
 }, [countries, selectedCode]);
-
-  useEffect(() => {
-    if (!initial?.country_code || !countries.length) return;
-    const code = initial.country_code.toUpperCase();
-    const item = countries.find(c => c.code.toUpperCase() === code);
-    if (item) {
-      setCountryQuery(
-        `${item.name} (${code})${item.dial_code ? ` — ${item.dial_code}` : ""}`
-      );
-      setValue("org.country_code", code, { shouldValidate: true });
-    }
-  }, [countries, initial?.country_code, setValue]);
 
   const createContact = watch("createContact");
 
@@ -243,7 +231,7 @@ useEffect(() => {
       if (res.success) {
         const tmp = res.returnedData.temp_password;
         if (values.createContact && tmp) {
-          toast?.(`Client created. Contact login created. Temp password: ${tmp}`, "success");
+          toast?.(Client created. Contact login created. Temp password: ${tmp}, "success");
         } else {
           toast?.("Client created.", "success");
         }
@@ -328,7 +316,7 @@ useEffect(() => {
   {(item) => (
     <AutocompleteItem
       key={item.code.toUpperCase()}
-      textValue={`${item.name} ${item.code} ${item.dial_code ?? ""}`}
+      textValue={${item.name} ${item.code} ${item.dial_code ?? ""}}
     >
       {item.name} ({item.code.toUpperCase()})
       {item.dial_code ? ` — ${item.dial_code}` : ""}
@@ -345,7 +333,7 @@ useEffect(() => {
         <Input label="Tax ID" {...register("org.tax_id")} />
         {/* Phone with optional dial prefix preview */}
         <Input
-          label={selectedCountry?.dial_code ? `Phone (prefix ${selectedCountry.dial_code})` : "Phone"}
+          label={selectedCountry?.dial_code ? Phone (prefix ${selectedCountry.dial_code}) : "Phone"}
           {...register("org.phone")}
         />
       </div>
@@ -462,7 +450,7 @@ useEffect(() => {
       )}
 
       <div className="flex justify-end">
-        <Button type="submit" color="primary" isLoading={isSubmitting} className="text-white h-9 min-w-[120px]">
+        <Button type="submit" color="primary" isLoading={isSubmitting} className="text-white">
           {buttonLabel}
         </Button>
       </div>

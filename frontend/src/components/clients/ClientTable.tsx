@@ -16,6 +16,24 @@ const STATUS_COLORS: Record<ClientStatus, "success" | "warning" | "default"> = {
   archived: "default",
 };
 
+const STATUS_OPTIONS: { key: ClientStatus | ""; label: string }[] = [
+  { key: "", label: "All" },
+  { key: "active", label: "Active" },
+  { key: "suspended", label: "Suspended" },
+  { key: "archived", label: "Archived" },
+];
+
+// Table columns config
+const TABLE_COLUMNS = [
+  { key: "name", label: "Name" },
+  { key: "contact", label: "Contact" },
+  { key: "email", label: "Email" },
+  { key: "address", label: "Address" },
+  { key: "phone", label: "Phone" },
+  { key: "status", label: "Status" },
+  { key: "actions", label: "Actions", align: "text-right" },
+];
+
 export default function ClientTable({
   clients,
   loading,
@@ -29,14 +47,12 @@ export default function ClientTable({
 }) {
   const navigate = useNavigate();
 
-  // keep your existing local UI state for filters & selection
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<ClientStatus | "">("");
   const selectedStatusKeys = useMemo(
-    () => (status ? new Set<string>([status]) : new Set<string>()),
+    () => (status ? new Set<string>([status]) : new Set<string>([""])),
     [status]
   );
-
   const [tableSelectedKeys, setTableSelectedKeys] = useState<Selection>(new Set([]));
 
   const filtered = useMemo(() => {
@@ -48,42 +64,89 @@ export default function ClientTable({
     });
   }, [clients, query, status]);
 
+  // Helper to get cell value by column key
+  function getCellValue(client: Client, colKey: string) {
+    switch (colKey) {
+      case "name":
+        return <span className="font-medium">{client.name}</span>;
+      case "contact":
+        return client.contact_user
+          ? `${client.contact_user.first_name || ""} ${client.contact_user.last_name || ""}`.trim() ||
+            client.contact_user.username
+          : "—";
+      case "email":
+        return client.contact_user?.email || "—";
+      case "address":
+        return client.address || "—";
+      case "phone":
+        return client.phone || "—";
+      case "status":
+        return (
+          <Chip
+            size="sm"
+            variant="flat"
+            color={STATUS_COLORS[client.status] || "default"}
+            className="capitalize"
+          >
+            {client.status}
+          </Chip>
+        );
+      case "actions":
+        return (
+          <Button size="sm" variant="flat" onPress={() => onEdit(client)}>
+            <Icon icon="lucide:edit" className="mr-1" /> Edit
+          </Button>
+        );
+      default:
+        return null;
+    }
+  }
+
   return (
     <div className="space-y-4">
-      {/* toolbar (unchanged) */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Search by name…"
-            value={query}
-            onValueChange={setQuery}
-            startContent={<Icon icon="lucide:search" />}
-            onKeyDown={(e) => e.key === "Enter" && onSearch({ q: query, status })}
-            className="w-72"
-          />
-          <Select
-            label="Status"
-            selectedKeys={selectedStatusKeys}
-            className="w-48"
-            onSelectionChange={(keys) => {
-              const first = Array.from(keys)[0] as string | undefined;
-              setStatus((first as ClientStatus) ?? "");
-            }}
-          >
-            <SelectItem key="">All</SelectItem>
-            <SelectItem key="active">Active</SelectItem>
-            <SelectItem key="suspended">Suspended</SelectItem>
-            <SelectItem key="archived">Archived</SelectItem>
-          </Select>
-          <Button onPress={() => onSearch({ q: query, status })} isLoading={loading}>
-            Apply
-          </Button>
-        </div>
-
-        
+      {/* Responsive toolbar */}
+      <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-3">
+        <Input
+          size="sm"
+          placeholder="Search by name…"
+          value={query}
+          onValueChange={setQuery}
+          startContent={<Icon icon="lucide:search" />}
+          onKeyDown={(e) => e.key === "Enter" && onSearch({ q: query, status })}
+          className="w-full md:w-72"
+        />
+        <Select
+          size="sm"
+          selectedKeys={selectedStatusKeys}
+          className="w-full md:w-48"
+          popoverProps={{ className: "min-w-[8rem]" }}
+          selectorButtonProps={{
+            className: "h-[2.25rem] min-h-[2.25rem] px-3",
+          }}
+          renderValue={() => {
+            const selected = STATUS_OPTIONS.find(opt => opt.key === status);
+            return selected ? selected.label : "All";
+          }}
+          onSelectionChange={(keys) => {
+            const first = Array.from(keys)[0] as string | undefined;
+            setStatus((first as ClientStatus) ?? "");
+          }}
+        >
+          {STATUS_OPTIONS.map(opt => (
+            <SelectItem key={opt.key}>{opt.label}</SelectItem>
+          ))}
+        </Select>
+        <Button
+          size="sm"
+          onPress={() => onSearch({ q: query, status })}
+          isLoading={loading}
+          className="w-full md:w-auto"
+        >
+          Apply
+        </Button>
       </div>
 
-      {/* table (unchanged) */}
+      {/* Table */}
       <Table
         aria-label="Clients table"
         isStriped
@@ -94,37 +157,20 @@ export default function ClientTable({
         onRowAction={(key) => navigate(`/clients/${key}`)}
       >
         <TableHeader>
-          <TableColumn>Name</TableColumn>
-          <TableColumn>Contact</TableColumn>
-          <TableColumn>Email</TableColumn>
-          <TableColumn>Address</TableColumn>
-          <TableColumn>Phone</TableColumn>
-          <TableColumn>Status</TableColumn>
-          <TableColumn className="text-right">Actions</TableColumn>
+          {TABLE_COLUMNS.map(col => (
+            <TableColumn key={col.key} className={col.align || ""}>
+              {col.label}
+            </TableColumn>
+          ))}
         </TableHeader>
         <TableBody emptyContent={loading ? "Loading…" : "No clients found"}>
-          {filtered.map((c) => (
-            <TableRow key={c.id}>
-              <TableCell className="font-medium">{c.name}</TableCell>
-              <TableCell>
-                {c.contact_user
-                  ? `${c.contact_user.first_name || ""} ${c.contact_user.last_name || ""}`.trim() ||
-                    c.contact_user.username
-                  : "—"}
-              </TableCell>
-              <TableCell>{c.contact_user?.email || "—"}</TableCell>
-              <TableCell>{c.address || "—"}</TableCell>
-              <TableCell>{c.phone || "—"}</TableCell>
-              <TableCell>
-                <Chip size="sm" variant="flat" color={STATUS_COLORS[c.status] || "default"} className="capitalize">
-                  {c.status}
-                </Chip>
-              </TableCell>
-              <TableCell className="text-right">
-                <Button size="sm" variant="flat" onPress={() => onEdit(c)}>
-                  <Icon icon="lucide:edit" className="mr-1" /> Edit
-                </Button>
-              </TableCell>
+          {filtered.map((client) => (
+            <TableRow key={client.id}>
+              {TABLE_COLUMNS.map(col => (
+                <TableCell key={col.key} className={col.align || ""}>
+                  {getCellValue(client, col.key)}
+                </TableCell>
+              ))}
             </TableRow>
           ))}
         </TableBody>

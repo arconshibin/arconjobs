@@ -28,6 +28,7 @@ export interface Client {
   temp_password?: string; // only when backend generated one
 }
 
+// -------------------- GET CLIENTS --------------------
 export async function getClients(params?: {
   q?: string;
   country_code?: string;
@@ -43,7 +44,13 @@ export async function getClients(params?: {
   return safe<Client[]>(api.get(url));
 }
 
-type CreateClientPayload = {
+// -------------------- GET SINGLE CLIENT --------------------
+export async function getClient(id: string): Promise<ApiOk<Client> | ApiErr> {
+  return safe<Client>(api.get(`/accounts/clients/${id}/`));
+}
+
+// -------------------- CREATE CLIENT --------------------
+export type CreateClientPayload = {
   name: string;
   country_code?: string;
   country_name?: string;
@@ -66,20 +73,27 @@ export async function createClient(
   return safe<Client>(api.post("/accounts/clients/", payload));
 }
 
+// -------------------- UPDATE CLIENT --------------------
 export async function updateClient(
   id: string,
-  payload: Partial<Omit<CreateClientPayload, "contact_person">> // update org only
+  payload: Partial<Omit<CreateClientPayload, "contact_person">>
 ): Promise<ApiOk<Client> | ApiErr> {
-  return safe<Client>(api.patch(`/accounts/clients/${id}/`, payload));
-}
-export async function getClient(id: string): Promise<ApiOk<Client> | ApiErr> {
-  return safe<Client>(api.get(`/accounts/clients/${id}/`));
+  // Send PATCH request with only fields to update
+  const updateRes = await safe<Client>(api.patch(`/accounts/clients/${id}/`, payload));
+
+  // If PATCH fails, return the error
+  if ("error" in updateRes) return updateRes;
+
+  // Re-fetch full client to ensure all fields are present (including country details)
+  return getClient(id);
 }
 
+// -------------------- DELETE CLIENT --------------------
 export async function deleteClient(id: string): Promise<ApiOk<{}> | ApiErr> {
   return safe<{}>(api.delete(`/accounts/clients/${id}/`));
 }
 
+// -------------------- RESET CONTACT PASSWORD --------------------
 export async function resetContactPassword(
   id: string,
   payload?: { password?: string }

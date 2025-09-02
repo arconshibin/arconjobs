@@ -71,12 +71,18 @@ export async function listJobs(
 
     const path = `/jobs/${usp.toString() ? `?${usp.toString()}` : ""}`;
     const data = await api.get<Job[] | { results: Job[] }>(path);
+
+    // 👇 Debug log to inspect API response
+    console.log("Raw jobs API response:", data);
+
     const rows = Array.isArray(data) ? data : (data as any).results ?? [];
     return { success: true, returnedData: rows };
   } catch (e: any) {
+    console.error("Error fetching jobs:", e); // 👈 optional, also useful
     return { success: false, error: e?.message ?? "Request failed" };
   }
 }
+
 
 
 export interface UpsertJobPayload {

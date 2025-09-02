@@ -5,8 +5,10 @@ import { Outlet } from "react-router-dom";
 
 const DashboardLayout: React.FC = () => (
   <div className="min-h-screen w-full bg-background text-foreground">
-    <Header />
-    <div className="flex">
+    {/* Fixed header */}
+    <Header className="fixed top-0 left-0 w-full z-50" />
+    {/* Content below header */}
+    <div className="flex pt-16">
       <aside className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-[240px] bg-content1 border-r border-divider">
         <Sidebar />
       </aside>

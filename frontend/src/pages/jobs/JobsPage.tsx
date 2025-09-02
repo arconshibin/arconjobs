@@ -97,41 +97,9 @@ const navigate = useNavigate();
         </div>
       </PageCard>
 
-      {/* Create */}
-      <Modal isOpen={create.isOpen} onOpenChange={create.onOpenChange} isKeyboardDismissDisabled={false} isDismissable={false} placement="center" size="lg">
-        <ModalContent>
-          <ModalHeader>Add New Job</ModalHeader>
-          <ModalBody>
-            <JobForm
-              mode="create"
-              onSuccess={applyFilters}
-              onDone={create.onClose}
-            />
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+     
 
-      {/* Edit */}
-      <Modal isOpen={edit.isOpen} onOpenChange={edit.onOpenChange} isKeyboardDismissDisabled={false} isDismissable={false} placement="center" size="xl" 
-
-  scrollBehavior="inside" >
-        <ModalContent>
-          <ModalHeader>Edit Job</ModalHeader>
-          <ModalBody>
-            {editing && (
-              <JobForm
-                mode="edit"
-                initial={editing}
-                onSuccess={applyFilters}
-                onDone={() => {
-                  setEditing(null);
-                  edit.onClose();
-                }}
-              />
-            )}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+     
     </div>
   );
 }
